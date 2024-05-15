@@ -33,10 +33,11 @@ public:
     int k_, N_, D_;
 
     int init_len_, long_len_, err_num_, synd_size_;
-    int max_size_ = 1048576;
+    //int max_size_ = 1048576;
+    int max_size_ = 256;
 //k - useful symbolsi
 
-    Data(int err_num, std::string src_file): err_num_ {err_num} 
+    Data(int err_num, std::string src_file, int f): err_num_ {err_num} 
     {
         std::cout << "MAX_SIZE = " << max_size_ << std::endl;
 
@@ -46,21 +47,50 @@ public:
         /// reading from file
         std::ifstream file(src_file, std::ios::binary);
 
-        if (file) {
-            file.seekg(0, std::ios::end);
-            int file_size = file.tellg();
-            file.seekg(0, std::ios::beg);
+        if (f == 1)
+        {
+            if (file) {
+                file.seekg(0, std::ios::end);
+                int file_size = file.tellg();
+                file.seekg(0, std::ios::beg);
+            std::cout << "file size =  " << file_size << std::endl;
 
-            short_data_ch_.reserve(file_size);
-            data_int_.reserve(file_size); // probably * sizeof (int)
+                short_data_ch_.reserve(file_size);
+            std::cout << "beda " << std::endl;
 
-            file.read(short_data_ch_.data(), file_size);
-            file.close();
-            
-            init_len_  = file_size;
-            long_len_  = 2 * err_num_ + init_len_; // it's a minimum, mb better add more
-            synd_size_ = long_len_    - init_len_;
+
+                data_int_.reserve(file_size); // probably * sizeof (int)
+                std::cout << "beda aaaa " << std::endl;
+
+                file.read(short_data_ch_.data(), file_size);
+                std::cout << "beda aaaa " << std::endl;
+                file.close();
+                
+                std::cout << "beda aaaa " << std::endl;
+                init_len_  = file_size;
+            }
         }
+        else if (f == 2)  //string case
+        {
+            init_len_ = src_file.size();
+            std::cout << "init len = " << init_len_ <<  std::endl;
+
+            short_data_ch_.reserve(init_len_);
+            data_int_.reserve(init_len_); // probably * sizeof (int)
+
+            std::cout << "beda aaaa f = 2" << std::endl;
+            std::copy(short_data_ch_.begin(), short_data_ch_.end(), src_file.begin());
+        }
+        else
+        {
+            std::cout << "beda aaaa " << std::endl;
+			throw "\"incorrect flag for constructor\n _\"";
+        }
+                
+
+        long_len_  = 2 * err_num_ + init_len_; // it's a minimum, mb better add more
+        synd_size_ = long_len_    - init_len_;
+                 
 
              encoded_.reserve(long_len_);
               harmed_.reserve(long_len_);
@@ -69,17 +99,22 @@ public:
              decoded_.reserve(init_len_);
         long_data_ch_.reserve(long_len_);
 
-
          for (int i = 0; i < init_len_; i++) {
+//             std::cout << "beda " << i << std::endl;
              data_int_.push_back(short_data_ch_[i]);
          } // cast to int
-
     }
 
 
     ///**********************************************************************************
     ///****************************file functions************************************
     ///**********************************************************************************
+
+
+    int encoded_size_()
+    {
+        return encoded_.size();
+    }
 
     void enc_fprint_()
     {
@@ -122,7 +157,7 @@ public:
     void dec_harm_fprint_()
     {
         short_data_ch_.clear();
-        std::ofstream out_file("build/Bad_photo.ppm", std::ios::binary); 
+        std::ofstream out_file("build/Bad_photo.txt", std::ios::binary); 
 
         if (out_file)
         {
@@ -141,7 +176,7 @@ public:
     void final_fprint_()
     {
         short_data_ch_.clear();
-        std::ofstream out_file("build/Recovered_photo.ppm", std::ios::binary); 
+        std::ofstream out_file("build/Recovered_photo.txt", std::ios::binary); 
 
         if (out_file)
         {
@@ -202,7 +237,6 @@ public:
             std::cout << "msg size = " << msg_in.size() << "red_code_len = " << red_code_len << "max size = " << max_size_ << std::endl;  
 			if (msg_in.size() + red_code_len < max_size_) {  // was 256
 				int msg_in_size = msg_in.size();
-                std::cout << "inside " << std::endl;
 				std::vector<int> gen;
 				gen.reserve(red_code_len);
 
@@ -279,7 +313,10 @@ public:
             std::cout << " not harmed[h] = " << harmed_[h]; 
             
             int r = rand() % 256;
-            harmed_[h] = r;
+            if (r == harmed_[h])
+                harmed_[h]++;
+            else
+                harmed_[h] = r;
             std::cout << " r = " << r << " harmed[h] = " << harmed_[h] << std::endl; 
         }
 
@@ -319,16 +356,12 @@ public:
         std::vector<int> synd;
         synd.reserve(red_code_len + 1);
         
-        std::cout << "im inside 1 " << std::endl;
         for (int i = 0; i < red_code_len + 1; i++) {     //initialization
             synd.push_back(0);
         }
 
-        std::cout << "im inside 2 " << std::endl;
         for (int i = 1; i < red_code_len + 1; i++) {     // We need the first element 0 for mathematical accuracy, otherwise errors occur
-        std::cout << "im inside 3 " << std::endl;
             int temp = pow_my(GENERATOR, i - 1);
-        std::cout << "im inside 4 " << std::endl;
             synd[i] = gf_poly_eval(msg, temp);       //S[i+1] = C(a^(i))     sig fault
         }
 
@@ -493,6 +526,7 @@ public:
         err_loc.push_back(1);                               //error locator polynomial (sigma) C(x)
         old_loc.push_back(1);                               //the error locator polynomial of the previous iteration
         
+        std::cout << "im here in 2 " << std::endl;
         
         int synd_shift = synd.size() - red_code_len;
 
@@ -516,11 +550,15 @@ public:
             std::vector<int> new_loc;
             if(delta != 0){                                                         //if delta == 0, algorithm assumed that C(x) and L are correct for the moment and continues
                 if (old_loc.size() > err_loc.size()) {                              //~2*L <= k + erase_count
+            std::cout << "im here in 3 " << std::endl;
                     //Computing errata locator polynomial Sigma
                     new_loc = gf_poly_scale(old_loc, delta);
+            std::cout << "im here in 3 " << std::endl;
                     old_loc = gf_poly_scale(err_loc, inverse(delta));
+            std::cout << "im here in 3 " << std::endl;
                     err_loc = new_loc;
                 }
+            std::cout << "im here in 3 " << std::endl;
 
                 //Update with the discrepancy
                 err_loc = gf_poly_add(err_loc, gf_poly_scale(old_loc, delta));
@@ -559,6 +597,7 @@ public:
         //which identifies the error locations(ie, the index of the characters that need to be corrected)
         std::vector<int> err_pos;
         err_pos.reserve(nmess);
+            std::cout << "nmess = " << nmess << std::endl ;
 
         int errs = err_loc.size() - 1;
         for (int i = 0; i < nmess; i++) {
@@ -566,8 +605,8 @@ public:
                 err_pos.push_back(nmess - 1 - i);
             }
         }
-
         try {
+            std::cout << "err_pos.size = " << err_pos.size() << " errs = " << errs << std::endl ;
             if (err_pos.size() != errs) {
                 throw "Too many (or few) errors found for the errata locator polynomial!";
             }
@@ -583,11 +622,6 @@ public:
     }
 
 
-    /* @brief Function of decoding message
-        * @param msg_in - encoded message vector
-        * @param red_code_len - the number of characters representing the redundant code
-        * @param erase_pos - known errors positions
-        * @return  decoded message*/
     std::vector<int> rs_decode_msg(std::vector<int> msg_in, int red_code_len) {
         try {
             if (msg_in.size() > max_size_ - 1) {  // initially 255 
@@ -605,31 +639,36 @@ public:
 
         std::vector<int> msg_out;
         msg_out.reserve(long_len_);
+        std::cout << "after creation msg_out size = " << msg_out.size() << std::endl; 
         std::copy(msg_out.begin(), msg_out.end(), msg_in.begin());
-        std::cout << "im here 2 " << std::endl;
 
+        std::cout << "im here 2 " << std::endl;
         //so that we do not count the generator polynomial several times and do not divide, 
         //we immediately count the error syndrome polynomial, and if there is not at least 
         //one non-0 value in it, then the message is not distorted
         std::vector<int> synd = rs_calc_syndromes(msg_out, red_code_len);  // beda here, sig fault
-        std::cout << "im here 3" << std::endl;
+        std::cout << "after syndromes msg_out size = " << msg_out.size() << std::endl; 
         int max = *max_element(synd.begin(), synd.end());
-        std::cout << "im here 4" << std::endl;
+        std::cout << "im here 2 " << std::endl;
 
         if (max == 0) {
             return msg_out;
         }
+        std::cout << "im here 3 " << std::endl;
 
 
         std::vector<int> err_pos, err_loc;
         err_loc.reserve(synd.size());
         err_pos.reserve(synd.size());
 
+        std::cout << "im here 4 " << std::endl;
             //Find the error locator polynomial L(x)
             err_loc = rs_find_error_locator(synd, red_code_len);
+        std::cout << "im here 5 " << std::endl;
             
             reverse(err_loc.begin(), err_loc.end());
 
+            std::cout << "just before rs_find_errors msg_out size = " << msg_out.size() << std::endl; 
             //find the vector of the index of the characters that need to be corrected
             err_pos = rs_find_errors(err_loc, msg_out.size());
             
@@ -795,8 +834,12 @@ public:
      * @param y - rifht operand
      * @return x * y */
     inline int mult(int x, int y) {
+
+        //std::cout << "im here in mult " << std::endl;
         if (x == 0 || y == 0)
             return 0;
+
+          //  std::cout << "im here in mult 2 " << std::endl;
         return exp_[log_[x] + log_[y]];
     }
 
@@ -846,6 +889,7 @@ public:
     std::vector<int> gf_poly_scale(std::vector<int>& p, int x) {
         std::vector<int> res;
         res.reserve(p.size());
+            std::cout << "in gf poly scale " << std::endl;
 
         for (int i = 0; i < p.size(); i++) {
             res.push_back(mult(p[i], x));
@@ -936,12 +980,9 @@ public:
      * @param &p - polynomial to evaluate
      * @param x  - evaluation point */
     int gf_poly_eval(std::vector<int>& poly, int x) {
-        std::cout << "poly 1 " << std::endl;
         int y = poly[0];
-        std::cout << "poly 2 " << std::endl;
 
         for (int i = 1; i < poly.size(); i++) {
-            std::cout << "poly 3 " << std::endl;
             y = mult(y, x) ^ poly[i];
         }
         return y;

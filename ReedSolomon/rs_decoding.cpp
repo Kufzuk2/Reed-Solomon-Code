@@ -304,7 +304,8 @@ std::vector<int> rs_decode_msg(std::vector<int> msg_in, int red_code_len) {
 	if (max == 0) {
 		return msg_out;
 	}
-
+    
+    srd::cout << "yeeeeeeee" << std::endl;
 
 	std::vector<int> err_pos, err_loc;
 	err_loc.reserve(synd.size());
