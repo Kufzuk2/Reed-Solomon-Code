@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <cstring>
 #include <vector>
 #include <assert.h>
 
@@ -10,8 +11,11 @@
 #include <fstream>
 #include <algorithm>
 
+#include <random>
 #include <cmath>
-
+#include <thread>
+#include <type_traits>
+//#include "h.h"
 
 #define GENERATOR 2 //replace alpha in the classical theory
 
@@ -26,13 +30,29 @@ public:
     std::vector<int>       data_int_;
     std::vector<int>        encoded_;
     std::vector<int>         harmed_;
-    std::vector<int>   harm_decoded_;
-    std::vector<int>      recovered_;
     std::vector<int>        decoded_;
+    std::vector<int>      recovered_;
+    std::vector<int>    cut_decoded_;
+    std::vector<int>   harm_decoded_;
+
+    std::string  filename_;
+    bool is_photo_ = false;
+    bool   parall_ = false;
+
+    std::vector<std::vector<char>>     mega_data_;
+    std::vector<std::vector< int>> int_mega_data_;
+    int       ker_num_;
+    int s_single_size_; // 
+    int l_single_size_; // 
 
     int k_, N_, D_;
 
-    int init_len_, long_len_, err_num_, synd_size_;
+    int  init_len_, long_len_, err_num_, synd_size_;
+    float err_per_;
+
+    struct pixel_ {
+        unsigned char r, g, b;
+    };
     //int max_size_ = 1048576;
     int max_size_ = 256;
 //k - useful symbolsi
@@ -49,6 +69,7 @@ public:
 
         if (f == 1)
         {
+            filename_ = src_file;
             if (file) {
                 file.seekg(0, std::ios::end);
                 int file_size = file.tellg();
@@ -105,7 +126,53 @@ public:
          } // cast to int
     }
 
+    Data(float err_per, std::string src_file, int f, int ker_num): err_per_ {err_per}, ker_num_{ker_num} 
+    {
+        std::ifstream file(src_file, std::ios::binary);
+        parall_ = true;
+        filename_ = src_file;
 
+        if (f == 5)
+            is_photo_ = true;
+
+        if (file) {
+            mega_data_.reserve(ker_num_);
+
+            file.seekg(0, std::ios::end);
+            int file_size = file.tellg();
+            file.seekg(0, std::ios::beg);
+
+            err_num_  = file_size * err_per_ - 1;
+            init_len_ = file_size;
+            short_data_ch_.reserve(init_len_);
+            data_int_.reserve(init_len_); // probably * sizeof (int)
+
+            std::cout << "file size =  " << file_size << std::endl;
+
+            s_single_size_ = file_size / ker_num_ + 1;
+            l_single_size_ = s_single_size_ + 2 * err_num_;
+
+            while (l_single_size_ >= max_size_)
+            {
+                ker_num_++;  
+                s_single_size_ = file_size / ker_num_ + 1;
+                l_single_size_ = s_single_size_ + 2 * err_num_;
+                std::cout << "Number of parallel procceses increased to " << ker_num_ << "for correct work of algorithm" << std::endl;
+            }
+
+            synd_size_ = l_single_size_ - s_single_size_;
+
+            for (int i = 0; i < ker_num_ - 1; ++i) {
+                    mega_data_[i].reserve(l_single_size_);
+                    file.read(&mega_data_[i][0], l_single_size_); // Считываем данные в каждый внутренний вектор
+                    int_mega_data_[i] = convert_char_to_int(mega_data_[i]);
+            }
+                    file.read(&mega_data_[ker_num_ - 1][0], mega_data_[ker_num_ - 1].size()); // Считываем данные в каждый внутренний вектор
+                    int_mega_data_[ker_num_] = convert_char_to_int(mega_data_[ker_num_]);
+
+            file.close();
+        }
+    }
     ///**********************************************************************************
     ///****************************file functions************************************
     ///**********************************************************************************
@@ -120,6 +187,19 @@ public:
     {
         std::ofstream out_file("build/Encoded_data.txt", std::ios::binary); 
 
+        if (parall_)
+        {
+            for (const auto& innerVector : mega_data_) {
+                for (char c : innerVector) {
+                    out_file << c;
+                }
+                out_file << std::endl;  // Добавляем символ новой строки между векторами
+            }
+            out_file.close();
+            return;
+        }
+
+
         if (out_file)
         {
              for (int i = 0; i < long_len_; i++) {
@@ -132,32 +212,34 @@ public:
         }
         else
            std::cout << "didn't manage to write file with encoded data" << std::endl;
-    
     }
 
     void harm_fprint_()
     {
-        long_data_ch_.clear();
-        std::ofstream out_file("build/Harmed_data.txt", std::ios::binary); 
+        if (!is_photo_)
+        {    
+            long_data_ch_.clear();
+            std::ofstream out_file("build/Harmed_data.txt", std::ios::binary); 
 
-        if (out_file)
-        {
-             for (int i = 0; i < long_len_; i++) {
-                 //long_data_ch_.push_back(static_cast<const char>(encoded_[i]));
-                 long_data_ch_.push_back(harmed_[i]);
-             } // cast to char
+            if (out_file)
+            {
+                 for (int i = 0; i < long_len_; i++) {
+                     //long_data_ch_.push_back(static_cast<const char>(encoded_[i]));
+                     long_data_ch_.push_back(harmed_[i]);
+                 } // cast to char
 
-            out_file.write(long_data_ch_.data(), long_len_);
-            out_file.close();
+                out_file.write(long_data_ch_.data(), long_len_);
+                out_file.close();
+            }
+            else
+               std::cout << "didn't manage to write file with harmeded data" << std::endl;
         }
-        else
-           std::cout << "didn't manage to write file with harmeded data" << std::endl;
     }
 
     void dec_harm_fprint_()
     {
         short_data_ch_.clear();
-        std::ofstream out_file("build/Bad_photo.txt", std::ios::binary); 
+        std::ofstream out_file("build/Bad_data.txt", std::ios::binary); 
 
         if (out_file)
         {
@@ -175,23 +257,69 @@ public:
 
     void final_fprint_()
     {
-        short_data_ch_.clear();
-        std::ofstream out_file("build/Recovered_photo.txt", std::ios::binary); 
-
-        if (out_file)
+        if (!is_photo_)
         {
+           std::cout << " is not photo " << std::endl;
+            short_data_ch_.clear();
+            std::ofstream out_file("build/Recovered_data.txt", std::ios::binary); 
+
+            for (int i = 0; i < init_len_; ++i)
+            {
+                std::cout << short_data_ch_[i] << std::endl;
+            }
+
+
+            if (out_file)
+            {
+                short_data_ch_ = convert_int_to_char(decoded_);
+
+#if 0
              for (int i = 0; i < init_len_; i++) {
                  //long_data_ch_.push_back(static_cast<const char>(encoded_[i]));
                  short_data_ch_.push_back(decoded_[i]);
              } // cast to char
-
-            out_file.write(short_data_ch_.data(), init_len_);
-            out_file.close();
+#endif
+                out_file.write(short_data_ch_.data(), init_len_);
+                out_file.close();
+            }
+            else
+               std::cout << "didn't manage to write file with recovereded data" << std::endl;
         }
         else
-           std::cout << "didn't manage to write file with recovereded data" << std::endl;
+        {
+        
+            short_data_ch_.clear();
+            std::ofstream out_file("build/Recovered_photo.ppm", std::ios::binary); 
+
+            if (out_file)
+            {
+                short_data_ch_ = convert_int_to_char(decoded_);
+            std::ofstream out_file("build/Recovered_data.txt", std::ios::binary); 
+
+            }
+         }
 
     }
+
+
+std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
+    static_assert(sizeof(int) >= sizeof(char), "int should be larger or equal in size to char");
+
+    std::vector<char> charVector(intVector.size() * sizeof(int));
+    char* charData = reinterpret_cast<char*>(charVector.data());
+
+    std::memcpy(charData, intVector.data(), charVector.size());
+    return charVector;
+}
+
+std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
+    static_assert(sizeof(int) >= sizeof(char), "int should be larger or equal in size to char");
+    
+    const int* intData = reinterpret_cast<const int*>(charVector.data());
+    size_t numInts = charVector.size() / sizeof(int);
+    std::vector<int> intVector(intData, intData + numInts);
+    return intVector;
+}
     ///**********************************************************************************
     ///****************************encoding functions************************************
     ///**********************************************************************************
@@ -200,10 +328,41 @@ public:
 
     std::vector<int> encode_()
     {
-        std::cout << "MAX_SIZE = " << max_size_ << std::endl;
-        encoded_ = rs_encode_msg(data_int_, synd_size_);
-        std::copy(harmed_.begin(), harmed_.end(), encoded_.begin());
-        return encoded_;
+        if (!parall_)
+        {
+            std::cout << "MAX_SIZE = " << max_size_ << std::endl;
+            encoded_ = rs_encode_msg(data_int_, synd_size_);
+            std::cout << "encoded size = " << encoded_.size() << " synd size = " << synd_size_ << std::endl;
+
+            harmed_.resize(long_len_);
+            std::copy(harmed_.begin(), harmed_.end(), encoded_.begin());
+            return encoded_;
+        }
+
+        std::vector<std::thread> threads;
+       // for (auto& vec : mega_data_) {
+//            threads.emplace_back(rs_encode_msg, std::ref(vec), synd_size_);
+           // threads.emplace_back(&Data::rs_encode_msg, this, std::ref(vec), synd_size_);
+//            std::function<void()> func = std::bind(&Data::rs_encode_msg, this, std::ref(vec), synd_size_);
+
+         //   auto func = [this, &vec, synd_size_]() { this->rs_encode_msg(vec, synd_size_); };
+           // threads.emplace_back(func);
+            //threads.emplace_back([func]() { func(); });
+        for (auto& vec : int_mega_data_) {
+            auto func = [this, &vec]() {
+                this->rs_encode_msg(vec, synd_size_);
+            };
+            threads.emplace_back(func);
+        }
+
+        for (auto& t : threads) {
+            t.join();
+        }
+
+
+        for (auto& t : threads) {
+            t.join();
+        }
     }
 
 
@@ -306,22 +465,130 @@ public:
 
     std::vector<int> harm_()
     {
-        srand(time(0));
-        for (int i = 0; i < err_num_; i++) 
-        {    
-            int h = 20 + rand() % (long_len_ - 21);
-            std::cout << " not harmed[h] = " << harmed_[h]; 
-            
-            int r = rand() % 256;
-            if (r == harmed_[h])
-                harmed_[h]++;
-            else
-                harmed_[h] = r;
-            std::cout << " r = " << r << " harmed[h] = " << harmed_[h] << std::endl; 
-        }
+        if (!is_photo_)
+        {
+            srand(time(0));
+            for (int i = 0; i < err_num_; i++) 
+            {    
+                int h = 20 + rand() % (long_len_ - 21);
+        //        std::cout << " not harmed[h] = " << harmed_[h]; 
+                
+                int r = rand() % 256;
+                if (r == harmed_[h])
+                    harmed_[h]++;
+                else
+                    harmed_[h] = r;
+                std::cout << " r = " << r << " harmed[h] = " << harmed_[h] << std::endl; 
+            }
 
-        return harmed_;
+            return harmed_;
+        }
+        
+        std::ifstream inputFile(filename_, std::ios::binary);
+        
+        // Проверить, открылся ли файл успешно
+        if (!inputFile.is_open()) {
+            std::cout << "Не удалось открыть файл!" << std::endl;
+            return encoded_;  // pointless
+        }
+        
+        std::string format;
+        int width, height, maxColorValue;
+        
+        // Считать заголовок файла PPM
+        inputFile >> format >> width >> height >> maxColorValue;
+        
+        // Пропустить перевод строки
+        inputFile.ignore();
+        
+        // Создать вектор для хранения пикселей изображения
+        std::vector<pixel_> pixels(width * height);
+        
+        // Считать пиксели изображения
+        inputFile.read(reinterpret_cast<char*>(pixels.data()), pixels.size() * sizeof(pixel_));
+        
+        // Закрыть файл после чтения
+        inputFile.close();
+        
+        // Изменить качество изображения (случайное количество пикселей подвергаются изменению)
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> dis(0, pixels.size() - 1); // Диапазон случайных пикселей
+        
+        int numpixel_sToDistort = pixels.size() * err_per_; // Пример: изменить 10% пикселей
+        
+        for (int i = 0; i < numpixel_sToDistort; ++i) {
+            int index = dis(gen); // Получить случайный индекс пикселя
+            pixels[index].r = 0;
+            pixels[index].g = 0;
+            pixels[index].b = 0;
+        }
+        
+        // Открыть файл для записи
+        std::ofstream outputFile("build/Harmed_photo.ppm", std::ios::binary);
+        
+        // Записать заголовок файла PPM
+        outputFile << format << "\n" << width << " " << height << "\n" << maxColorValue << "\n";
+        
+        // Записать пиксели изображения
+        outputFile.write(reinterpret_cast<char*>(pixels.data()), pixels.size() * sizeof(pixel_));
+        
+        // Закрыть файл после записи
+        outputFile.close();
+/*
+        ifstream inputFile(filename_, ios::binary);
+        
+        // Проверить, открылся ли файл успешно
+        if (!inputFile.is_open()) {
+            cout << "Не удалось открыть файл!" << endl;
+            return 1;
+        }
+        
+        string format;
+        int width, height, maxColorValue;
+        
+        // Считать заголовок файла PPM
+        inputFile >> format >> width >> height >> maxColorValue;
+        
+        // Пропустить перевод строки
+        inputFile.ignore();
+        
+        // Создать вектор для хранения пикселей изображения
+        vector<pixel_> pixels(width * height);
+        
+        // Считать пиксели изображения
+        inputFile.read(reinterpret_cast<char*>(pixels.data()), pixels.size() * sizeof(pixel_));
+        
+        // Закрыть файл после чтения
+        inputFile.close();
+        
+        // Изменить качество изображения (случайное количество пикселей подвергаются изменению)
+        random_device rd;
+        mt19937 gen(rd());
+        uniform_int_distribution<> dis(0, pixels.size() - 1); // Диапазон случайных пикселей
+        
+        int numpixel_sToDistort = pixels.size() * err_per_; // Пример: изменить 10% пикселей
+        
+        for (int i = 0; i < numpixel_sToDistort; ++i) {
+            int index = dis(gen); // Получить случайный индекс пикселя
+            pixels[index].r = 0;
+            pixels[index].g = 0;
+            pixels[index].b = 0;
+        }
+        
+        // Открыть файл для записи
+        ofstream outputFile("build/Harmed_photo.ppm", ios::binary);
+        
+        // Записать заголовок файла PPM
+        outputFile << format << "\n" << width << " " << height << "\n" << maxColorValue << "\n";
+        
+        // Записать пиксели изображения
+        outputFile.write(reinterpret_cast<char*>(pixels.data()), pixels.size() * sizeof(pixel_));
+        
+        // Закрыть файл после записи
+        outputFile.close();*/
     }
+
 
 
     ///**********************************************************************************
@@ -331,6 +598,7 @@ public:
 
     std::vector<int> decode()
     {
+        std::cout << "harmed size = " << harmed_.size() << " synd size = " << synd_size_ << std::endl;
         decoded_ = rs_decode_msg(harmed_, synd_size_);
         return decoded_;
     }
@@ -550,7 +818,7 @@ public:
             std::vector<int> new_loc;
             if(delta != 0){                                                         //if delta == 0, algorithm assumed that C(x) and L are correct for the moment and continues
                 if (old_loc.size() > err_loc.size()) {                              //~2*L <= k + erase_count
-            std::cout << "im here in 3 " << std::endl;
+            std::cout << "im here in 3, synd size = " << synd_size_ << " synd.size = " << synd.size() << std::endl;
                     //Computing errata locator polynomial Sigma
                     new_loc = gf_poly_scale(old_loc, delta);
             std::cout << "im here in 3 " << std::endl;
@@ -639,7 +907,8 @@ public:
 
         std::vector<int> msg_out;
         msg_out.reserve(long_len_);
-        std::cout << "after creation msg_out size = " << msg_out.size() << std::endl; 
+        std::cout << "after creation msg_in size = " << msg_in.size() << " long len = " << long_len_ << std::endl; 
+        msg_out.resize(encoded_.size());
         std::copy(msg_out.begin(), msg_out.end(), msg_in.begin());
 
         std::cout << "im here 2 " << std::endl;
@@ -837,8 +1106,10 @@ public:
 
         //std::cout << "im here in mult " << std::endl;
         if (x == 0 || y == 0)
+        {
             return 0;
-
+        }
+            std::cout << "beda mult" << std::endl;
           //  std::cout << "im here in mult 2 " << std::endl;
         return exp_[log_[x] + log_[y]];
     }

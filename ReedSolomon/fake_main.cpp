@@ -1,8 +1,9 @@
 #include <iostream>
 #include "total.hpp"
 
-#define One_ 1
-#define Two_ 2
+#define  One_ 1
+#define  Two_ 2
+#define Five_ 5
 
 
 
