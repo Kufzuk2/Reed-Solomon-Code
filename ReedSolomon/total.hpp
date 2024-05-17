@@ -171,7 +171,6 @@ public:
             is_photo_ = true;
 
         if (file) {
-            mega_data_.reserve(ker_num_);
 
             file.seekg(0, std::ios::end);
             int file_size = file.tellg();
@@ -183,20 +182,25 @@ public:
             short_data_ch_.reserve(init_len_);
             data_int_.reserve(init_len_); // probably * sizeof (int)
 
-            std::cout << "file size =  " << file_size << std::endl;
 
             s_single_size_ = file_size / ker_num_ + 1;
             loc_err_       = s_single_size_     * err_per_;
             l_single_size_ = s_single_size_ + 2 * loc_err_;
 
+            std::cout << "file size =  " << file_size << " l single size =" << l_single_size_ << " loc err = " << loc_err_<< std::endl;
             while (l_single_size_ >= max_size_)
             {
                 ker_num_++;  
                 s_single_size_ = file_size / ker_num_ + 1;
                 l_single_size_ = s_single_size_ + 2 * err_num_;
+                std::cout << "file size =  " << file_size << " l single size =" << l_single_size_ << " loc err = " << loc_err_<< std::endl;
                 std::cout << "Number of parallel procceses increased to " << ker_num_ << "for correct work of algorithm" << std::endl;
             }
 
+            mega_data_.reserve(ker_num_);
+            mega_data_.resize (ker_num_);
+            int_mega_data_.reserve(ker_num_);
+            int_mega_data_.resize (ker_num_);
             synd_size_ = l_single_size_ - s_single_size_;
 
             for (int i = 0; i < ker_num_ - 1; ++i) {
@@ -204,8 +208,11 @@ public:
                     file.read(&mega_data_[i][0], l_single_size_); // Считываем данные в каждый внутренний вектор
                     int_mega_data_[i] = convert_char_to_int(mega_data_[i]);
             }
+                std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
                     file.read(&mega_data_[ker_num_ - 1][0], mega_data_[ker_num_ - 1].size()); // Считываем данные в каждый внутренний вектор
-                    int_mega_data_[ker_num_] = convert_char_to_int(mega_data_[ker_num_]);
+                std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
+                    int_mega_data_[ker_num_ - 1] = convert_char_to_int(mega_data_[ker_num_ - 1]);
+                std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
 
             file.close();
         }
@@ -476,10 +483,18 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
          //   auto func = [this, &vec, synd_size_]() { this->rs_encode_msg(vec, synd_size_); };
            // threads.emplace_back(func);
             //threads.emplace_back([func]() { func(); });
+            for (int i = 0; i < s_single_size_; i++)
+            {
+                std::cout << int_mega_data_[0][i];
+            }
+                std::cout << std::endl;
+
             
         std::vector<std::thread> threads;
         for (auto& vec : int_mega_data_) {
             auto func = [this, &vec]() {
+                
+                std::cout << "vec size = " << vec.size() << std::endl;
                 this->rs_encode_msg(vec, synd_size_);
             };
             threads.emplace_back(func);
