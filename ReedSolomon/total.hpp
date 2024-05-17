@@ -15,6 +15,7 @@
 #include <cmath>
 #include <thread>
 #include <type_traits>
+#include <charconv>
 //#include "h.h"
 
 #define GENERATOR 2 //replace alpha in the classical theory
@@ -47,7 +48,7 @@ public:
 
     int k_, N_, D_;
 
-    int  init_len_, long_len_, err_num_, synd_size_;
+    int  init_len_, long_len_, err_num_, synd_size_, loc_err_;
     float err_per_;
 
     struct pixel_ {
@@ -100,7 +101,10 @@ public:
             data_int_.reserve(init_len_); // probably * sizeof (int)
 
             std::cout << "beda aaaa f = 2" << std::endl;
-            std::copy(short_data_ch_.begin(), short_data_ch_.end(), src_file.begin());
+            short_data_ch_.resize(init_len_);
+            std::copy(src_file.begin(), src_file.end(), short_data_ch_.begin());
+
+            std::cout << " in constructor encoded size = " << encoded_.size() << " synd size = " << synd_size_ << "in encode_() short data ch size =" << short_data_ch_.size() << std::endl;
         }
         else
         {
@@ -119,11 +123,42 @@ public:
            recovered_.reserve(long_len_);
              decoded_.reserve(init_len_);
         long_data_ch_.reserve(long_len_);
+            
+        std::cout << " int data size = " << data_int_.size() << " synd size = " << synd_size_ << "in encode_() short data ch size =" << short_data_ch_.size() << std::endl;
+        
+        std::cout << "here is the initial before any changes casted string " << std::endl;
+        for (int i = 0; i < init_len_; ++i)
+        {
+            std::cout << short_data_ch_[i];
+        }
+        std::cout << std::endl;
+
+
+        short_data_ch_.resize(init_len_);
+//        data_int_ = convert_char_to_int(short_data_ch_);
 
          for (int i = 0; i < init_len_; i++) {
 //             std::cout << "beda " << i << std::endl;
              data_int_.push_back(short_data_ch_[i]);
          } // cast to int
+  
+
+        short_data_ch_.clear();
+        short_data_ch_.resize(init_len_);
+        short_data_ch_ = convert_int_to_char(data_int_); //seems to be needed
+/*
+        for (int i = 0; i < init_len_; i++)
+        {
+            short_data_ch_.push_back(static_cast<char>(decoded_[i]));
+        }
+*/
+        std::cout << "here is the initial but twice casted string " << std::endl;
+        for (int i = 0; i < init_len_; ++i)
+        {
+            std::cout << short_data_ch_[i];
+        }
+        std::cout << std::endl;
+
     }
 
     Data(float err_per, std::string src_file, int f, int ker_num): err_per_ {err_per}, ker_num_{ker_num} 
@@ -143,6 +178,7 @@ public:
             file.seekg(0, std::ios::beg);
 
             err_num_  = file_size * err_per_ - 1;
+
             init_len_ = file_size;
             short_data_ch_.reserve(init_len_);
             data_int_.reserve(init_len_); // probably * sizeof (int)
@@ -150,7 +186,8 @@ public:
             std::cout << "file size =  " << file_size << std::endl;
 
             s_single_size_ = file_size / ker_num_ + 1;
-            l_single_size_ = s_single_size_ + 2 * err_num_;
+            loc_err_       = s_single_size_     * err_per_;
+            l_single_size_ = s_single_size_ + 2 * loc_err_;
 
             while (l_single_size_ >= max_size_)
             {
@@ -239,6 +276,7 @@ public:
     void dec_harm_fprint_()
     {
         short_data_ch_.clear();
+        std::cout << "dec harm fprint short data ch size =" << short_data_ch_.size() << std::endl;
         std::ofstream out_file("build/Bad_data.txt", std::ios::binary); 
 
         if (out_file)
@@ -257,33 +295,68 @@ public:
 
     void final_fprint_()
     {
+        
+
         if (!is_photo_)
         {
-           std::cout << " is not photo " << std::endl;
-            short_data_ch_.clear();
-            std::ofstream out_file("build/Recovered_data.txt", std::ios::binary); 
-
-            for (int i = 0; i < init_len_; ++i)
+            if (!parall_)
             {
-                std::cout << short_data_ch_[i] << std::endl;
-            }
+                std::cout << " is not photo " << std::endl;
+                short_data_ch_.clear();
+                std::ofstream out_file("build/Recovered_data.txt", std::ios::binary); 
 
 
-            if (out_file)
-            {
-                short_data_ch_ = convert_int_to_char(decoded_);
+
+                if (out_file)
+                {
+                    //short_data_ch_ = convert_int_to_char(decoded_);
+                    for (int i = 0; i < init_len_; i++)
+                    {
+                        short_data_ch_.push_back(decoded_[i]);
+                    }
+
+
+                    std::cout << "final  fprint short data ch size =" << short_data_ch_.size() << "decoded_ size" << decoded_.size() << std::endl;
+
+                    
+                    std::cout << "short_data_ch_ size  =  " << short_data_ch_.size() << std::endl;
+                    std::cout << "here is the decoded string " << std::endl;
+                    for (int i = 0; i < init_len_; ++i)
+                    {
+                        std::cout << short_data_ch_[i];
+                    }
+                    std::cout << std::endl;
 
 #if 0
-             for (int i = 0; i < init_len_; i++) {
-                 //long_data_ch_.push_back(static_cast<const char>(encoded_[i]));
-                 short_data_ch_.push_back(decoded_[i]);
-             } // cast to char
+                 for (int i = 0; i < init_len_; i++) {
+                     //long_data_ch_.push_back(static_cast<const char>(encoded_[i]));
+                     short_data_ch_.push_back(decoded_[i]);
+                 } // cast to char
 #endif
-                out_file.write(short_data_ch_.data(), init_len_);
-                out_file.close();
+                    out_file.write(short_data_ch_.data(), init_len_);
+                    out_file.close();
+                }
+                else
+                   std::cout << "didn't manage to write file with recovereded data" << std::endl;
+
             }
             else
-               std::cout << "didn't manage to write file with recovereded data" << std::endl;
+            {
+                std::ofstream out_file("build/Recovered_data.txt", std::ios::binary); 
+                if (out_file)
+                {
+                    out_file.write(short_data_ch_.data(), init_len_);
+
+                    for (int i = 0; i < ker_num_ - 1; ++i)
+                    {
+                        mega_data_[i] = convert_int_to_char(int_mega_data_[i]);                    
+                        out_file.write(mega_data_[i].data(), s_single_size_);
+                    }
+                    out_file.write(mega_data_[ker_num_ - 1].data(), mega_data_[ker_num_ - 1].size());
+                }
+                out_file.close();
+                return;
+            }
         }
         else
         {
@@ -300,8 +373,63 @@ public:
          }
 
     }
+std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
+    std::vector<char> charVector(intVector.size() * sizeof(int));
+    char* charData = reinterpret_cast<char*>(charVector.data());
+
+    for (size_t i = 0; i < intVector.size(); ++i) {
+        auto res = std::to_chars(charData + i * sizeof(int), charData + (i + 1) * sizeof(int), intVector[i]);
+        if (res.ec != std::errc()) {
+            // Handle conversion error
+            return {}; // Return empty vector to indicate failure
+        }
+    }
+
+    return charVector;
+}
+
+/*
+std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
+    std::vector<char> charVector;
+    charVector.reserve(intVector.size());
+
+    for (int i : intVector) {
+        charVector.push_back(static_cast<char>(i));
+    }
+
+    return charVector;
+}
+std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
+    std::vector<char> charVector;
+    charVector.reserve(intVector.size() * sizeof(int));
+
+    for (int i : intVector) {
+        for (size_t byte = 0; byte < sizeof(int); ++byte) {
+            char byteValue = static_cast<char>((i >> (byte * 8)) & 0xFF);
+            charVector.push_back(byteValue);
+        }
+    }
+
+    return charVector;
+}*/
 
 
+
+
+
+
+    /*
+std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
+    const size_t totalBytes = intVector.size() * sizeof(int);
+    std::vector<char> charVector(totalBytes);
+
+    char* charData = reinterpret_cast<char*>(charVector.data());
+    std::memcpy(charData, intVector.data(), totalBytes);
+
+    return charVector;
+}*/
+
+/*
 std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
     static_assert(sizeof(int) >= sizeof(char), "int should be larger or equal in size to char");
 
@@ -311,6 +439,7 @@ std::vector<char> convert_int_to_char(const std::vector<int>& intVector) {
     std::memcpy(charData, intVector.data(), charVector.size());
     return charVector;
 }
+*/
 
 std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
     static_assert(sizeof(int) >= sizeof(char), "int should be larger or equal in size to char");
@@ -330,16 +459,15 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
     {
         if (!parall_)
         {
-            std::cout << "MAX_SIZE = " << max_size_ << std::endl;
+            std::cout << "here MAX_SIZE = " << max_size_ << std::endl;
             encoded_ = rs_encode_msg(data_int_, synd_size_);
-            std::cout << "encoded size = " << encoded_.size() << " synd size = " << synd_size_ << std::endl;
+            std::cout << "encoded size = " << encoded_.size() << " synd size = " << synd_size_ << "in encode_() short data ch size =" << short_data_ch_.size() << std::endl;
 
             harmed_.resize(long_len_);
-            std::copy(harmed_.begin(), harmed_.end(), encoded_.begin());
+            std::copy(encoded_.begin(), encoded_.end(), harmed_.begin());
             return encoded_;
         }
 
-        std::vector<std::thread> threads;
        // for (auto& vec : mega_data_) {
 //            threads.emplace_back(rs_encode_msg, std::ref(vec), synd_size_);
            // threads.emplace_back(&Data::rs_encode_msg, this, std::ref(vec), synd_size_);
@@ -348,6 +476,8 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
          //   auto func = [this, &vec, synd_size_]() { this->rs_encode_msg(vec, synd_size_); };
            // threads.emplace_back(func);
             //threads.emplace_back([func]() { func(); });
+            
+        std::vector<std::thread> threads;
         for (auto& vec : int_mega_data_) {
             auto func = [this, &vec]() {
                 this->rs_encode_msg(vec, synd_size_);
@@ -467,21 +597,39 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
     {
         if (!is_photo_)
         {
-            srand(time(0));
-            for (int i = 0; i < err_num_; i++) 
-            {    
-                int h = 20 + rand() % (long_len_ - 21);
-        //        std::cout << " not harmed[h] = " << harmed_[h]; 
-                
-                int r = rand() % 256;
-                if (r == harmed_[h])
-                    harmed_[h]++;
-                else
-                    harmed_[h] = r;
-                std::cout << " r = " << r << " harmed[h] = " << harmed_[h] << std::endl; 
+            if (!parall_)
+            {
+                srand(time(0));
+                for (int i = 0; i < err_num_; i++) 
+                {    
+                    int h = 20 + rand() % (long_len_ - 21);
+            //        std::cout << " not harmed[h] = " << harmed_[h]; 
+                    
+                    int r = rand() % 256;
+                    if (r == harmed_[h])
+                        harmed_[h]++;
+                    else
+                        harmed_[h] = r;
+                    std::cout << " r = " << r << " harmed[h] = " << harmed_[h] << std::endl; 
+                }
+            
+            return harmed_;
             }
 
-            return harmed_;
+            for (auto& vec: int_mega_data_)
+            {
+                
+                srand(time(0));
+                for (int i = 0; i < loc_err_; i++) 
+                {    
+                    int h = rand() % (l_single_size_);
+            //        std::cout << " not harmed[h] = " << harmed_[h]; 
+                    
+                        vec[h] = 0;
+                    //std::cout << " r = " << r << " harmed[h] = " << harmed_[h] << std::endl; 
+                }
+
+            }
         }
         
         std::ifstream inputFile(filename_, std::ios::binary);
@@ -598,11 +746,30 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
 
     std::vector<int> decode()
     {
-        std::cout << "harmed size = " << harmed_.size() << " synd size = " << synd_size_ << std::endl;
-        decoded_ = rs_decode_msg(harmed_, synd_size_);
-        return decoded_;
-    }
+        if (!parall_)
+        {
+            std::cout << "harmed size = " << harmed_.size() << " synd size = " << synd_size_ << std::endl;
+            decoded_ = rs_decode_msg(harmed_, synd_size_);
+            return decoded_;
+        }
+        
+        std::vector<std::thread> threads;
+        for (auto& vec : int_mega_data_) {
+            auto func = [this, &vec]() {
+                this->rs_decode_msg(vec, synd_size_);
+            };
+            threads.emplace_back(func);
+        }
 
+        for (auto& t : threads) {
+            t.join();
+        }
+
+
+        for (auto& t : threads) {
+            t.join();
+        }
+    }
 
 
 
@@ -909,7 +1076,7 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
         msg_out.reserve(long_len_);
         std::cout << "after creation msg_in size = " << msg_in.size() << " long len = " << long_len_ << std::endl; 
         msg_out.resize(encoded_.size());
-        std::copy(msg_out.begin(), msg_out.end(), msg_in.begin());
+        std::copy(msg_in.begin(), msg_in.end(), msg_out.begin());
 
         std::cout << "im here 2 " << std::endl;
         //so that we do not count the generator polynomial several times and do not divide, 
@@ -1109,7 +1276,7 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
         {
             return 0;
         }
-            std::cout << "beda mult" << std::endl;
+            //std::cout << "beda mult" << std::endl;
           //  std::cout << "im here in mult 2 " << std::endl;
         return exp_[log_[x] + log_[y]];
     }
