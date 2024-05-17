@@ -203,17 +203,17 @@ public:
             int_mega_data_.resize (ker_num_);
             synd_size_ = l_single_size_ - s_single_size_;
 
+            std::cout << "int mega data size[0] = " << mega_data_[0].size() << "ker num = " << ker_num_ << std::endl;
             for (int i = 0; i < ker_num_ - 1; ++i) {
                     mega_data_[i].reserve(l_single_size_);
-                    file.read(&mega_data_[i][0], l_single_size_); // Считываем данные в каждый внутренний вектор
+                    mega_data_[i].resize(l_single_size_);
+                    file.read(mega_data_[i].data(), l_single_size_); // Считываем данные в каждый внутренний вектор
                     int_mega_data_[i] = convert_char_to_int(mega_data_[i]);
             }
-                std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
                     file.read(&mega_data_[ker_num_ - 1][0], mega_data_[ker_num_ - 1].size()); // Считываем данные в каждый внутренний вектор
-                std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
                     int_mega_data_[ker_num_ - 1] = convert_char_to_int(mega_data_[ker_num_ - 1]);
-                std::cout << "AAAAAAAAAAAAAAAAAAAAAAAAAAAA" << std::endl;
 
+            std::cout << "int mega data size[0] = " << mega_data_[0].size() << "ker num = " << ker_num_ << std::endl;
             file.close();
         }
     }
@@ -483,12 +483,14 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
          //   auto func = [this, &vec, synd_size_]() { this->rs_encode_msg(vec, synd_size_); };
            // threads.emplace_back(func);
             //threads.emplace_back([func]() { func(); });
-            for (int i = 0; i < s_single_size_; i++)
+
+#if 0
+        for (int i = 0; i < s_single_size_; i++)
             {
                 std::cout << int_mega_data_[0][i];
             }
                 std::cout << std::endl;
-
+#endif
             
         std::vector<std::thread> threads;
         for (auto& vec : int_mega_data_) {
@@ -539,6 +541,8 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
 	std::vector<int> rs_encode_msg(std::vector<int>& msg_in, int red_code_len) {
 		try {
             std::cout << "msg size = " << msg_in.size() << "red_code_len = " << red_code_len << "max size = " << max_size_ << std::endl;  
+            std::cout << "Thread ID: " << std::this_thread::get_id() << std::endl;
+
 			if (msg_in.size() + red_code_len < max_size_) {  // was 256
 				int msg_in_size = msg_in.size();
 				std::vector<int> gen;
@@ -551,8 +555,10 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
 				msg_out.reserve(msg_out_size);
 
 				for (int i = 0; i < msg_out_size; i++) { // initialize msg_out: len = msg_in.size() + red_code_len
-					if (i < msg_in_size)
+					if (i < msg_in_size){
 						msg_out.push_back(msg_in[i]);                      // the highest k characters contain the original message
+                        
+                    }                                                 
 					else
 					{
 						msg_out.push_back(0);
@@ -1403,18 +1409,31 @@ std::vector<int> convert_char_to_int(const std::vector<char>& charVector) {
     void gf_poly_div(std::vector<int>& divident, std::vector<int>& divisor, std::vector<int>& quotient, std::vector<int>& remainder) {
         std::vector<int> msg_out;
         msg_out.reserve(divident.size());
+                std::cout << "1CCCCC" << std::endl;  
 
         for (int i = 0; i < divident.size(); i++) {
             msg_out.push_back(divident[i]);
+            //std::cout << "msg out ["  << i << "] = " << msg_out[i] << std::endl;
         }
-
+#if 0
+                std::cout << "2CCCCC" << std::endl;  
+                std::cout << "divisor  size " << divisor.size() << std::endl;  
+                std::cout << "divident size " << divident.size() << std::endl;  
+                std::cout << "msg out size " << msg_out.size() << std::endl;  
+#endif
         //use the synthetic division algorithm
         for (int i = 0; i < divident.size() - (divisor.size() - 1); i++) {
             int coef = msg_out[i];
+            //std::cout << "i = "  << i  << std::endl;
             if (coef != 0) {                                          //log[0] is undefined, so we need to manually check for this case
                 for (int j = 1; j < divisor.size(); j++) {
                     if (divisor[j] != 0) {
-                        msg_out[i + j] ^= mult(divisor[j], coef);      //~ msg_out[i + j] += - divisor[j] * coef, but xor is faster
+                        //std::cout << "i + j ="  << i + j << std::endl;
+                        //msg_out[i + j] ^= mult(divisor[j], coef);      //~ msg_out[i + j] += - divisor[j] * coef, but xor is faster
+                        int x = - divisor[j] * coef;
+                        //std::cout << "i + j ="  << i + j << std::endl;
+                        msg_out[i + j] += x;
+                        //std::cout << "i + j ="  << i + j << std::endl;
                     }
                 }
             }
